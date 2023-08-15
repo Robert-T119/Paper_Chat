@@ -1,0 +1,45 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Text Processor</title>
+    <link rel="stylesheet" href="{% static 'text_processor/web/pdf_viewer.css' %}">
+    <link rel="stylesheet" href="{% static 'text_processor/web/custom_styles.css' %}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <!-- Using defer to ensure script runs after the DOM is fully parsed -->
+</head>
+<body>
+    <h1>Welcome to the PDF Text Processor</h1>
+    
+    <div class="main-container">
+        
+        <!-- PDF Container -->
+        <div class="pdf-container">
+            <div id="pdf-viewer" style="height: 600px;">
+                <!-- Adding the id attribute to the iframe element -->
+                <iframe id="pdf-viewer-frame" src="{% static 'pdfjs-3/web/viewer.html' %}?file=" width="100%" height="600px"></iframe>
+            </div>
+            <!-- This div will contain your Summarize and Explain buttons -->
+            <div id="text-options" style="position: absolute; display: none;">
+                <button id="summarizeBtn" onclick="summarizeText()">Summarize</button>
+                <button id="explainBtn" onclick="explainText()">Explain</button>
+            </div>
+        </div>
+        
+        <!-- Chat Container -->
+        <div class="chat-container">
+            <div id="chatbox">
+                <div id="chat-messages"></div>
+                <textarea id="user-input" placeholder="Type your message..."></textarea>
+                <button onclick="sendMessage()">Send</button>
+                <input id="user-input" type="text" disabled>
+            </div>
+        </div>
+
+    </div>
+</body>
+<script src="{% static 'text_processor/text_processor.js' %}"></script>
+</html>
