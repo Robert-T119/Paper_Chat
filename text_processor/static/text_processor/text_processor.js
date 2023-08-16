@@ -75,13 +75,16 @@ function sendMessage() {
     // Get user input
     const userInput = document.getElementById("user-input").value;
 
+    // Append user message to the chatbox
+    appendMessage("user", userInput);
+
     // Get the PDF content from the hidden input field
-    const pdfContent = document.getElementById("pdf-content").value;  // This line is added
+    const pdfContent = document.getElementById("pdf-content").value;
 
     // Prepare data to send to the server
     const data = {
         text: userInput,
-        action: "summarize", // or "explain" based on the desired action
+        action: "summarize",
         pdf_content: pdfContent
     };
 
@@ -90,15 +93,13 @@ function sendMessage() {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            // Add any other required headers
         },
         body: JSON.stringify(data),
     })
     .then(response => response.json())
     .then(data => {
-        // Display the result in the chatbox
-        const chatMessages = document.getElementById("chat-messages");
-        chatMessages.innerHTML += "<p>" + data.result + "</p>";
+        // Append bot's reply to the chatbox
+        appendMessage("bot", data.result);
     })
     .catch(error => {
         console.error("Error:", error);
@@ -119,13 +120,23 @@ function sendDataToBackend(text, action) {
     })
     .then(response => response.json())
     .then(data => {
-        console.log(data);
-        const chatMessages = parent.document.getElementById('chat-messages');
-        chatMessages.innerHTML += `<div>Bot: ${data.result}</div>`;
-    })    
+        appendMessage("bot", data.result);
+    })
     .catch(error => {
         console.error('There was a problem with the fetch operation:', error.message);
     });
+}
+
+function appendMessage(sender, message) {
+    const chatMessages = document.getElementById("chat-messages");
+    const messageDiv = document.createElement("div");
+    messageDiv.className = sender + "-message";
+    const messageContent = `
+        <span class="message-label">${sender === "user" ? "You" : "Bot"}:</span>
+        <p class="message-content">${message}</p>
+    `;
+    messageDiv.innerHTML = messageContent;
+    chatMessages.appendChild(messageDiv);
 }
 
 function getCookie(name) {
