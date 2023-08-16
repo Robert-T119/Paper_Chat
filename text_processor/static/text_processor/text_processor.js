@@ -13,40 +13,25 @@ function getSelectedTextFromViewer() {
 function showOptionsAboveSelectedText() {
     console.log("Trying to show options...");
 
-    const viewerIframe = document.getElementById('pdf-viewer-frame');
-    const viewerDocument = viewerIframe.contentDocument || viewerIframe.contentWindow.document;
-    const selection = viewerDocument.getSelection();
-
-    const selectedText = selection.toString();
+    const selectedText = getSelectedTextFromViewer();
     console.log("Selected Text:", selectedText);
 
     if (selectedText.trim() !== "") {
-        if (selection.rangeCount === 0) {
-            return;
-        }
-
-        const range = selection.getRangeAt(0);
-        const rects = range.getClientRects();
-        const firstRect = rects[0];
-
-        const optionsDiv = parent.document.getElementById('text-options');
-        console.log("Options Div:", optionsDiv);
+        const optionsDiv = window.top.document.getElementById('text-options');  // Use window.top to ensure we're accessing the main document
 
         if (!optionsDiv) {
             console.error("Cannot find the text-options div in the DOM.");
             return;
         }
 
-        const divWidth = optionsDiv.offsetWidth;
-        const divHeight = optionsDiv.offsetHeight;
-
-        optionsDiv.style.left = (firstRect.left + (firstRect.width / 2) - (divWidth / 2)) + 'px'; 
-        optionsDiv.style.top = (firstRect.top - divHeight - 10) + 'px';
         optionsDiv.style.display = 'block';
-
-        console.log("Computed coordinates:", {left: firstRect.left, top: (firstRect.top - divHeight - 10)});
+    } else {
+        const optionsDiv = window.top.document.getElementById('text-options');
+        optionsDiv.style.display = 'none';
     }
 }
+
+
 
 function updateButtonStates() {
     const selectedText = getSelectedTextFromViewer();
@@ -63,48 +48,6 @@ function updateButtonStates() {
         explainBtn.disabled = true;
         optionsDiv.style.display = 'none';
     }
-}
-
-let pdfContent = "";
-
-function extractPdfContentFromPdfJs() {
-    const viewerIframe = document.getElementById('pdf-viewer-frame');
-    const viewerDocument = viewerIframe.contentDocument || viewerIframe.contentWindow.document;
-
-    if (!viewerDocument.PDFViewerApplication || !viewerDocument.PDFViewerApplication.pdfDocument) {
-        console.error("PDFViewerApplication or pdfDocument is not available.");
-        return;
-    }
-    
-    const pdfUrl = viewerDocument.PDFViewerApplication.pdfDocument._transport._params.url; // Get PDF URL
-
-    // Ensure PDF.js worker is correctly set up
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '//mozilla.github.io/pdf.js/build/pdf.worker.js';
-    document.getElementById('user-input').disabled = true;
-
-    pdfjsLib.getDocument(pdfUrl).promise.then(function(pdf) {
-        let totalPages = pdf.numPages;
-        let allPagesText = [];
-
-        for(let i = 1; i <= totalPages; i++) {
-            allPagesText.push(pdf.getPage(i).then(function(page) {
-                return page.getTextContent().then(function(textContent) {
-                    return textContent.items.map(function(item) {
-                        return item.str;
-                    }).join(' ');
-                });
-            }));
-        }
-
-        Promise.all(allPagesText).then(function(pagesText) {
-            pdfContent = pagesText.join(' ');
-            console.log("Extracted PDF Content:", pdfContent);
-            document.getElementById('user-input').disabled = false;
-
-        });
-    }).catch(function(error) {
-        console.error("Error extracting PDF content:", error);
-    });
 }
 
 function wordCount(str) {
@@ -127,16 +70,39 @@ function explainText() {
     sendDataToBackend(text, 'explain');
 }
 
+
 function sendMessage() {
-    const input = document.getElementById('user-input');
-    const message = input.value;
-    input.value = "";
+    // Get user input
+    const userInput = document.getElementById("user-input").value;
 
-    const context = `Document says: ${pdfContent}. User asks: ${message}`;
-    sendDataToBackend(context, 'query');
+    // Get the PDF content from the hidden input field
+    const pdfContent = document.getElementById("pdf-content").value;  // This line is added
 
-    const chatMessages = parent.document.getElementById('chat-messages');
-    chatMessages.innerHTML += `<div>User: ${message}</div>`;
+    // Prepare data to send to the server
+    const data = {
+        text: userInput,
+        action: "summarize", // or "explain" based on the desired action
+        pdf_content: pdfContent
+    };
+
+    // Send data to the server
+    fetch("/process_text/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            // Add any other required headers
+        },
+        body: JSON.stringify(data),
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Display the result in the chatbox
+        const chatMessages = document.getElementById("chat-messages");
+        chatMessages.innerHTML += "<p>" + data.result + "</p>";
+    })
+    .catch(error => {
+        console.error("Error:", error);
+    });
 }
 
 function sendDataToBackend(text, action) {
@@ -153,7 +119,7 @@ function sendDataToBackend(text, action) {
     })
     .then(response => response.json())
     .then(data => {
-        console.log(data);  // This will show you the exact response you're getting from the backend
+        console.log(data);
         const chatMessages = parent.document.getElementById('chat-messages');
         chatMessages.innerHTML += `<div>Bot: ${data.result}</div>`;
     })    
@@ -177,50 +143,42 @@ function getCookie(name) {
     return cookieValue;
 }
 
-function waitForPDFViewerApplication(callback, timeout = 3000, interval = 200) {
-    let waited = 0;
-    
-    function check() {
-        const viewerIframe = document.getElementById('pdf-viewer-frame');
-        const viewerDocument = viewerIframe.contentDocument || viewerIframe.contentWindow.document;
-
-        if (viewerDocument.PDFViewerApplication && viewerDocument.PDFViewerApplication.pdfDocument) {
-            callback();
-        } else if (waited < timeout) {
-            waited += interval;
-            setTimeout(check, interval);
-        } else {
-            console.error("Timeout: PDFViewerApplication or pdfDocument is not available.");
-        }
+document.getElementById('pdf-upload-input').addEventListener('change', function(event) {
+    var file = event.target.files[0];
+    if (file) {
+        var reader = new FileReader();
+        reader.onload = function(evt) {
+            var blob = new Blob([evt.target.result], {type: 'application/pdf'});
+            var blobURL = URL.createObjectURL(blob);
+            
+            // Set the iframe's src to the blobURL
+            document.getElementById('pdf-viewer-frame').src = '{% static "pdfjs-3/web/viewer.html" %}?file=' + encodeURIComponent(blobURL);
+        };
+        reader.readAsArrayBuffer(file);
     }
+});
 
-    check();
-}
-
-function checkPDFViewerReady(callback) {
-    const viewerIframe = document.getElementById('pdf-viewer-frame');
-    const viewerDocument = viewerIframe.contentDocument || viewerIframe.contentWindow.document;
-
-    if (viewerDocument.PDFViewerApplication && viewerDocument.PDFViewerApplication.pdfDocument) {
-        callback();
-    } else {
-        setTimeout(() => checkPDFViewerReady(callback), 500); // check every half-second
-    }
-}
-
-if (pdfViewerFrame) {
-    pdfViewerFrame.addEventListener('load', function() {
+function bindIframeEvents() {
+    const pdfViewerFrame = document.getElementById('pdf-viewer-frame');
+    if (pdfViewerFrame) {
         console.log("Iframe loaded");
 
-        // Check for PDF.js readiness and then extract content
-        checkPDFViewerReady(extractPdfContentFromPdfJs);
-
+        // Existing Mouseup Event
         pdfViewerFrame.contentWindow.document.addEventListener('mouseup', function() {
             console.log("Mouseup event triggered inside iframe");
             updateButtonStates();
             showOptionsAboveSelectedText();
         });
-    });
-} else {
-    console.error('Cannot find the PDF viewer frame.');
+
+        // Test Click Event Listener
+        pdfViewerFrame.contentWindow.document.body.onclick = function() {
+            console.log("Click event triggered inside iframe");
+        };
+    } else {
+        setTimeout(bindIframeEvents, 500);  // retry after 500ms
+    }
 }
+
+document.addEventListener("DOMContentLoaded", bindIframeEvents);
+
+
