@@ -180,5 +180,3 @@ function bindIframeEvents() {
 }
 
 document.addEventListener("DOMContentLoaded", bindIframeEvents);
-
-
